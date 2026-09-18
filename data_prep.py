@@ -35,12 +35,6 @@ def load_raw(path=RAW_PATH):
 
 
 def build_daily_series(df):
-    """
-    Source data is reported irregularly (roughly 4-6 days/week, with
-    real gaps around holidays and reporting lapses). Reindex to a
-    continuous daily calendar and interpolate the flow/stock columns
-    so downstream lag/rolling features and models see a clean series.
-    """
     full_idx = pd.date_range(df.index.min(), df.index.max(), freq="D")
     daily = df.reindex(full_idx)
     daily.index.name = "date"
