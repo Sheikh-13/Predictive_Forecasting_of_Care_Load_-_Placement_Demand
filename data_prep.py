@@ -20,7 +20,6 @@ def load_raw(path=RAW_PATH):
     df = pd.read_csv(path)
     df = df.dropna(subset=["Date"]).copy()
     df = df.rename(columns=COLS)
-    # numeric columns may be strings with thousands separators
     for c in df.columns:
         if c == "date":
             continue
