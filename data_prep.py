@@ -24,7 +24,7 @@ def load_raw(path=RAW_PATH):
         if c == "date":
             continue
         df[c] = (
-            df[c].astype(str).str.replace(",", "", regex=False).str.strip()
+            df[c].astype(str).str.replace(",", "", regex=False).str.strip() # remove thousands-separator commas
         )
         df[c] = pd.to_numeric(df[c], errors="coerce")
     df["date"] = pd.to_datetime(df["date"], format="%B %d, %Y")
