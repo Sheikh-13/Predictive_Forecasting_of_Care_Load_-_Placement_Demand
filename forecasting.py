@@ -13,8 +13,6 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 HORIZONS = [1, 7, 14]
-# ML_FEATURE_COLS = None  # set dynamically
-
 
 # ---------- metrics ----------
 
@@ -81,7 +79,7 @@ def exp_smoothing_forecast(history, horizon):
         return naive_forecast(history, horizon)
 
 
-# ---------- ML models ## (direct multi-step, recursive on engineered lags) ----------
+# ---------- ML models ---------------
 
 def _ml_feature_cols(df, target):
     return [
@@ -192,9 +190,8 @@ def walk_forward_evaluate(
     if last_possible_cutoff <= first_cutoff:
         raise ValueError("Not enough data for requested walk-forward config")
 
-    cutoffs = list(range(last_possible_cutoff, first_cutoff, -step_days))[:n_splits]
-    cutoffs = sorted(cutoffs)  #modify the code into single expression tauheed.
-
+    cutoffs = sorted(list(range(last_possible_cutoff, first_cutoff, -step_days))[:n_splits])
+   
     records = []
     for cutoff in cutoffs:
         train_df = df.iloc[:cutoff]
@@ -233,8 +230,10 @@ def summarize_results(results_df):
 
 
 def forecast_future(df, target, model_name, horizon, ci_alpha=0.1):
-    """Produce a future forecast (beyond the end of df) with a simple
-    residual-based confidence interval for display purposes."""
+    """
+    Produce a future forecast (beyond the end of df) with a simple
+    residual-based confidence interval for display purposes.
+    """
     fn = MODEL_REGISTRY[model_name]
     preds = fn(df, df, target, horizon)
     """
