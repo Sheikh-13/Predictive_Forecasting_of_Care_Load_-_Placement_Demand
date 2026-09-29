@@ -282,3 +282,8 @@ with tab_scenarios:
               f"{breach_b['any_day_breach_prob']*100:.1f}%")
 
 st.divider()
+st.caption(
+    "Predictive Forecasting of Care Load & Placement Demand — built for HHS UAC Program planning. "
+    "Forecasts are statistical estimates based on historical patterns and should complement, not "
+    "replace, operational judgment."
+)
