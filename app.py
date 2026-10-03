@@ -150,6 +150,7 @@ def render_forecast_tab(target, container):
             x=list(fc.index) + list(fc.index[::-1]),
             y=list(fc["upper"]) + list(fc["lower"][::-1]),
             fill="toself", fillcolor="rgba(31,78,121,0.15)", line=dict(width=0),
+            mode="lines",hoverinfo="skip",showlegend=True,
             name="90% confidence interval",
         ))
 
