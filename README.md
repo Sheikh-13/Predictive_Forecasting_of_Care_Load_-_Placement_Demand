@@ -226,7 +226,7 @@ Along with:
 ### **Overview & EDA**
 *Trend, net pressure & correlation view*
 
-![Overview](uac-snapshots/1.OverviewEDA-2.png)
+![Overview](uac-snapshots/1.OverviewEDA-1.png)
 
 ![Overview](uac-snapshots/2.OverviewEDA-2.png)
 
