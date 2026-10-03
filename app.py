@@ -126,12 +126,14 @@ with tab_overview:
     yearly = daily.groupby(daily.index.year)[["hhs_care", "transferred_to_hhs", "discharged"]].mean().round(1)
     yearly.index.name = "Year"
     st.dataframe(yearly, use_container_width=True)
-    
-      # The system underwent a sharp structural shift in early 2025 — average children in HHS 
-      # care fell roughly 65% from 2024 to 2025, alongside a comparable drop in daily transfers 
-      # and discharges. Models trained on the full 2023–2025 history should be interpreted with 
-      # this regime change in mind (see Model Comparison tab)
-
+    st.caption(
+        """
+      The system underwent a sharp structural shift in early 2025 — average children in HHS 
+      care fell roughly 65% from 2024 to 2025, alongside a comparable drop in daily transfers 
+      and discharges. Models trained on the full 2023–2025 history should be interpreted with 
+      this regime change in mind (see Model Comparison tab)
+      """
+    )
 # ====================== CARE LOAD TAB ===================
 
 def render_forecast_tab(target, container):
