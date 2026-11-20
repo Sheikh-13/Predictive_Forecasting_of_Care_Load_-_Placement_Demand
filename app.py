@@ -27,16 +27,24 @@ TARGET_LABELS = {"hhs_care": "Children in HHS Care", "discharged": "Children Dis
 MODEL_NAMES = list(MODEL_REGISTRY.keys())
 
 
-# ----------------------data --------------------
+# ---------------------------------------------------------------- data ----
+# uploaded_file is threaded through every cached function below (rather than
+# read as a module-level global inside them) so Streamlit's cache correctly
+# treats "bundled dataset" and "uploaded dataset" as different inputs —
+# every tab recomputes consistently when a new file is uploaded, instead of
+# some tabs silently keeping stale cached results from the old dataset.
 @st.cache_data(show_spinner="Loading and preparing UAC data...")
-def load_data():
-    raw, daily, featured = get_clean_dataset()
+def load_data(uploaded_file=None):
+    if uploaded_file is not None:
+        raw, daily, featured = get_clean_dataset(uploaded_file)
+    else:
+        raw, daily, featured = get_clean_dataset()
     return raw, daily, featured
 
 
 @st.cache_data(show_spinner="Running walk-forward validation across models... (first load only)")
-def run_walkforward(target, n_splits=8, step_days=25, min_train_days=450):
-    _, _, featured = load_data()
+def run_walkforward(target, uploaded_file=None, n_splits=10, step_days=20, min_train_days=500):
+    _, _, featured = load_data(uploaded_file)
     res = walk_forward_evaluate(
         featured, target, n_splits=n_splits, step_days=step_days,
         min_train_days=min_train_days,
@@ -45,16 +53,34 @@ def run_walkforward(target, n_splits=8, step_days=25, min_train_days=450):
 
 
 @st.cache_data(show_spinner="Generating forecast...")
-def run_future_forecast(target, model_name, horizon):
-    _, _, featured = load_data()
+def run_future_forecast(target, model_name, horizon, uploaded_file=None):
+    _, _, featured = load_data(uploaded_file)
     return forecast_future(featured, target, model_name, horizon)
 
 
-raw, daily, featured = load_data()
+# ---------------------------------------------------------------- sidebar --
+st.sidebar.title("Forecast Controls")
+
+uploaded_file = st.sidebar.file_uploader(
+    "Upload your own data (CSV)", type="csv",
+    help="Optional. Must contain the same columns as the bundled HHS UAC "
+         "dataset: Date, Children apprehended and placed in CBP custody, "
+         "Children in CBP custody, Children transferred out of CBP custody, "
+         "Children in HHS Care, Children discharged from HHS Care. Leave "
+         "empty to use the bundled dataset.",
+)
+
+try:
+    raw, daily, featured = load_data(uploaded_file)
+    if uploaded_file is not None:
+        st.sidebar.success(f"Using uploaded file: {uploaded_file.name}")
+except Exception as e:
+    st.sidebar.error(f"Couldn't read that file — using the bundled dataset instead.\n\n{e}")
+    uploaded_file = None
+    raw, daily, featured = load_data(None)
+
 last_date = daily.index.max()
 
-# --------------------- sidebar --------------
-st.sidebar.title("Forecast Controls")
 horizon = st.sidebar.slider("Forecast horizon (days)", min_value=3, max_value=14, value=7)
 model_choice = st.sidebar.selectbox("Model", MODEL_NAMES, index=MODEL_NAMES.index("SARIMA"))
 compare_model = st.sidebar.selectbox(
@@ -75,10 +101,10 @@ st.title("Predictive Forecasting of Care Load & Placement Demand")
 st.caption("UAC Program — HHS/CBP daily operations data · forecasting dashboard for capacity planning")
 
 tab_overview, tab_care, tab_discharge, tab_models, tab_scenarios = st.tabs(
-    ["Overview & EDA", "Care Load Forecast", "Discharge Demand", "Model Comparison", "Scenario Comparison"]
+    ["📊 Overview & EDA", "🏠 Care Load Forecast", "🚪 Discharge Demand", "🧪 Model Comparison", "🔀 Scenario Comparison"]
 )
 
-# ======================= OVERVIEW TAB =====================
+# =========================================================== OVERVIEW TAB ==
 with tab_overview:
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Children in HHS Care (latest)", f"{daily['hhs_care'].iloc[-1]:,.0f}",
@@ -127,38 +153,36 @@ with tab_overview:
     yearly.index.name = "Year"
     st.dataframe(yearly, use_container_width=True)
     st.caption(
-        """
-      The system underwent a sharp structural shift in early 2025 — average children in HHS 
-      care fell roughly 65% from 2024 to 2025, alongside a comparable drop in daily transfers 
-      and discharges. Models trained on the full 2023–2025 history should be interpreted with 
-      this regime change in mind (see Model Comparison tab)
-      """
+        "The system underwent a sharp structural shift in early 2025 — average children in HHS "
+        "care fell roughly 65% from 2024 to 2025, alongside a comparable drop in daily transfers "
+        "and discharges. Models trained on the full 2023–2025 history should be interpreted with "
+        "this regime change in mind (see Model Comparison tab)."
     )
-# ====================== CARE LOAD TAB ===================
 
+# ======================================================== CARE LOAD TAB ==
 def render_forecast_tab(target, container):
     with container:
-        fc = run_future_forecast(target, model_choice, horizon)
+        fc = run_future_forecast(target, model_choice, horizon, uploaded_file)
         history_tail = daily[target].iloc[-60:]
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=history_tail.index, y=history_tail.values,
-                                  name="Observed", line=dict(color="#333")))
+                                  name="Observed", mode="lines", line=dict(color="#333")))
         fig.add_trace(go.Scatter(x=fc.index, y=fc["forecast"], name=f"{model_choice} forecast",
-                                  line=dict(color="#1f4e79", dash="dash")))
+                                  mode="lines+markers", line=dict(color="#1f4e79", dash="dash")))
         fig.add_trace(go.Scatter(
             x=list(fc.index) + list(fc.index[::-1]),
             y=list(fc["upper"]) + list(fc["lower"][::-1]),
             fill="toself", fillcolor="rgba(31,78,121,0.15)", line=dict(width=0),
-            mode="lines",
-            hoverinfo="skip",showlegend=True,
+            mode="lines",  # otherwise Plotly auto-adds markers on short traces
+            hoverinfo="skip", showlegend=True,
             name="90% confidence interval",
         ))
 
         if compare_model != "(none)":
-            fc2 = run_future_forecast(target, compare_model, horizon)
+            fc2 = run_future_forecast(target, compare_model, horizon, uploaded_file)
             fig.add_trace(go.Scatter(x=fc2.index, y=fc2["forecast"], name=f"{compare_model} forecast",
-                                      line=dict(color="#c0392b", dash="dot")))
+                                      mode="lines+markers", line=dict(color="#c0392b", dash="dot")))
 
         if target == "hhs_care":
             fig.add_hline(y=capacity_threshold, line_color="red", line_dash="dot",
@@ -170,14 +194,12 @@ def render_forecast_tab(target, container):
         st.plotly_chart(fig, use_container_width=True)
 
         k1, k2, k3 = st.columns(3)
-        res = run_walkforward(target)
+        res = run_walkforward(target, uploaded_file)
         summary = summarize_results(res)
-        
         # Walk-forward metrics are only computed at HORIZONS (1/7/14 days), but the
         # sidebar slider allows any value in between — snap to the closest evaluated
         # horizon instead of an exact match, or the accuracy metric goes blank for
         # most slider positions (e.g. horizon=5).
-
         nearest_h = min(HORIZONS, key=lambda h: abs(h - horizon))
         row = summary[(summary.model == model_choice) & (summary.horizon == nearest_h)]
         acc = forecast_accuracy_pct(row["MAPE"].values[0]) if len(row) else np.nan
@@ -214,12 +236,12 @@ with tab_discharge:
     st.subheader(f"Discharge Demand Forecast — {model_choice}")
     render_forecast_tab("discharged", st.container())
 
-# ======================== MODEL COMPARISON ==============================
+# ======================================================== MODEL COMPARISON ==
 with tab_models:
     st.subheader("Model selection & walk-forward comparison")
     target_for_compare = st.radio("Target series", list(TARGET_LABELS.keys()),
                                    format_func=lambda t: TARGET_LABELS[t], horizontal=True)
-    res = run_walkforward(target_for_compare)
+    res = run_walkforward(target_for_compare, uploaded_file)
     summary = summarize_results(res)
 
     fig = go.Figure()
@@ -242,9 +264,10 @@ with tab_models:
     rob_pivot = rob.pivot(index="model", columns="horizon", values="stability_score").round(1)
     rob_pivot.columns = [f"{h}d stability score" for h in rob_pivot.columns]
     st.dataframe(rob_pivot, use_container_width=True)
-    st.caption("Stability score (0-100): how consistent each model's error is across different walk-forward origins. Higher = more robust / less prone to occasional large misses.")
+    st.caption("Stability score (0-100): how consistent each model's error is across different "
+               "walk-forward origins. Higher = more robust / less prone to occasional large misses.")
 
-# ======================== SCENARIOS =============================
+# ======================================================== SCENARIOS ==
 with tab_scenarios:
     st.subheader("Scenario comparison")
     st.caption("Compare how forecasts and capacity risk shift under different assumptions.")
@@ -261,8 +284,8 @@ with tab_scenarios:
         cap_b = st.number_input("Capacity threshold B", 500, 15000,
                                  int(daily["hhs_care"].iloc[-90:].max() * 1.3), 100, key="cap_b")
 
-    fc_a = run_future_forecast("hhs_care", model_a, horizon)
-    fc_b = run_future_forecast("hhs_care", model_b, horizon)
+    fc_a = run_future_forecast("hhs_care", model_a, horizon, uploaded_file)
+    fc_b = run_future_forecast("hhs_care", model_b, horizon, uploaded_file)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=daily.index[-45:], y=daily["hhs_care"].iloc[-45:],
@@ -286,3 +309,8 @@ with tab_scenarios:
               f"{breach_b['any_day_breach_prob']*100:.1f}%")
 
 st.divider()
+st.caption(
+    "Predictive Forecasting of Care Load & Placement Demand — built for HHS UAC Program planning. "
+    "Forecasts are statistical estimates based on historical patterns and should complement, not "
+    "replace, operational judgment."
+)
