@@ -131,14 +131,8 @@ Interactive charts powered by Plotly:
 ├── validation_checks.py    # One-off checks: regime-aware validation + interpolation sensitivity
 ├── requirements.txt
 ├── README.md
-├── data/
-│   └── HHS_Unaccompanied_Alien_Children_Program.csv
-├── docs/
-│   ├── UI_Guide.md          # Element-by-element dashboard guide
-│   └── Code_Walkthrough.md  # Line-by-line code documentation
-└── outputs/
-    ├── UAC_Forecasting_Research_Paper.docx
-    └── UAC_Executive_Summary.docx
+└── data/
+     └── HHS_Unaccompanied_Alien_Children_Program.csv
 ```
 
 ---
